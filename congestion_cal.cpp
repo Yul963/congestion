@@ -54,7 +54,6 @@ torch::Tensor post_process(cv::Mat image){
 
     // 텐서 변환
     torch::Tensor input_tensor = torch::from_blob(float_image.data, {1, 400, 400, 3}).permute({0, 3, 1, 2});
-    input_tensor = input_tensor.to(torch::kCUDA);
 
     return input_tensor;
 }
@@ -82,25 +81,45 @@ cv::Mat tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1 to color
 }
 
 void process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv, std::string& model_path){
+    std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
+    torch::Device device(torch::kCPU);
+    if (torch::cuda::is_available()) {
+        device = torch::Device(torch::kCUDA, 0); // Set current device to CUDA device 0
+        std::cout << "CUDA is available. Using GPU." << std::endl;
+    } else {
+        std::cout << "CUDA is not available. Using CPU." << std::endl;
+    }
+    torch::DeviceGuard guard(device);
+    torch::NoGradGuard no_grad;
+
     torch::jit::script::Module module = load_model(model_path);
+    module.to(device);
+
+    torch::Tensor output;
     std::string img_path;
+    cv::Mat image;
+    torch::Tensor input_tensor;
     while (true)
     {
         std::unique_lock<std::mutex> lock(mtx);
         conv.wait(lock, [&q]{ return !q.empty(); });
-        cv::Mat image = q.front();
+        start_time = std::chrono::system_clock::now();
+        image = q.front();
         q.pop();
         lock.unlock();
 
-        torch::NoGradGuard no_grad;
-        torch::Tensor input_tensor = post_process(image);
-
-        at::Tensor output = module.forward({input_tensor}).toTensor();
-
+        input_tensor = post_process(image).to(device);
+        input_tensor.to(device);
+        //std::cout<< input_tensor.requires_grad()<<"  "<< torch::autograd::GradMode::is_enabled()<<std::endl;
+        output = module.forward({input_tensor}).toTensor();
+        
         image = tensor_to_image(output);
+        end_time = std::chrono::system_clock::now();
         if (!img_path.empty())
             img_path.clear();
         img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
+        std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+        std::cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< std::endl;
         imwrite(img_path, image);
     }
 }
