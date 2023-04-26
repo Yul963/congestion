@@ -1,24 +1,30 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
+#include <condition_variable>
+#include <string>
 
-int vid() {
-
-    cv::VideoCapture cap("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0");
+void process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv, std::string& url) {
+    cv::VideoCapture cap(url);
     if (!cap.isOpened()) {
         std::cerr << "Error opening the rtsp stream." << std::endl;
-        return -1;
+        exit(0);
     }
 
     // Create a window to display the captured frames
     cv::namedWindow("RTSP Stream", cv::WINDOW_NORMAL);
+    int fps = cap.get(cv::CAP_PROP_FPS);
+    int frame_interval = fps * 60;
+    int current_frame = 0;
 
-    // Start capturing and processing frames
-    cv::Mat frame;
     while (true) {
-        // Read a new frame from the rtsp stream
-        cap.read(frame);
+        cv::Mat frame;
+        bool ret = cap.read(frame);
 
-        // Check if the frame is empty
+        if (!ret) {
+            std::cout << "Error: Unable to read the frame from the video capture" << std::endl;
+            break;
+        }
+
         if (frame.empty()) {
             std::cerr << "End of rtsp stream." << std::endl;
             break;
@@ -31,11 +37,14 @@ int vid() {
         if (cv::waitKey(1) == 'q') {
             break;
         }
-    }
 
-    // Release the resources
+        current_frame++;
+        if (current_frame%frame_interval == 0) {
+            std::unique_lock<std::mutex> lock(mtx);
+            q.push(frame);
+            conv.notify_all();
+        }
+    }
     cap.release();
     cv::destroyAllWindows();
-
-    return 0;
 }

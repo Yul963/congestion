@@ -16,7 +16,7 @@ include_directories(${CUDA_INCLUDE_DIRS} include)
 add_executable(${NAME} main.cpp vid_processing.cpp congestion_cal.cpp)
 target_link_libraries(${NAME} "${TORCH_LIBRARIES}")
 target_link_libraries(${NAME} ${OpenCV_LIBS})
-set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 14)
+set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 23)
 
 # The following code block is suggested to be used on Windows.
 # According to https://github.com/pytorch/pytorch/issues/25457,
