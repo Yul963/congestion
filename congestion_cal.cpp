@@ -80,20 +80,38 @@ cv::Mat tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1 to color
     return mask_image;
 }
 
+float get_congestion(std::vector<cv::Mat> base_images, std::vector<cv::Mat> target_image){
+    cv::Mat merged_base, merged_target;
+    cv::vconcat(base_images, merged_base);
+    cv::vconcat(target_image, merged_target);
+    int base = (float)cv::countNonZero(merged_base);
+    if (base==0){
+        std::cout<<"base_image countNonZero returned 0. check base_image."<<std::endl;
+        return -1.0f;
+    }
+    int target = cv::countNonZero(merged_target);
+    return target >= base ? 0.0f : (float)(base-target)/(float)base;
+}
+
 void process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv, std::string& model_path){
     std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
+
     torch::Device device(torch::kCPU);
     if (torch::cuda::is_available()) {
         device = torch::Device(torch::kCUDA, 0); // Set current device to CUDA device 0
         std::cout << "CUDA is available. Using GPU." << std::endl;
-    } else {
+    } else {        
         std::cout << "CUDA is not available. Using CPU." << std::endl;
     }
-    torch::DeviceGuard guard(device);
+    
     torch::NoGradGuard no_grad;
 
+    std::cout<<"loading model...";
     torch::jit::script::Module module = load_model(model_path);
+    module.eval();
     module.to(device);
+    std::cout<<"done."<<std::endl;;
+    //module.forward({torch::zeros({1, 3, 400, 400})});
 
     torch::Tensor output;
     std::string img_path;
@@ -107,12 +125,9 @@ void process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_varia
         image = q.front();
         q.pop();
         lock.unlock();
-
         input_tensor = post_process(image).to(device);
-        input_tensor.to(device);
         //std::cout<< input_tensor.requires_grad()<<"  "<< torch::autograd::GradMode::is_enabled()<<std::endl;
         output = module.forward({input_tensor}).toTensor();
-        
         image = tensor_to_image(output);
         end_time = std::chrono::system_clock::now();
         if (!img_path.empty())
