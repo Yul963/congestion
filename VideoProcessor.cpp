@@ -5,12 +5,14 @@
 #include <thread>
 #include <VideoProcessor.hpp>
 
-CCTV::CCTV(std::string url, std::string name, cv::Mat base_image){
+CCTV::CCTV(std::string url, std::string name, std::string location,cv::Mat base_image){
     sec = 10;
     see_windows = false;
     this->url = url;
     this->name = name;
+    this->location = location;
     this->base_image = base_image;
+    
     std::cout<<"opening VideoCapture of "<< this->name << "...";
     cap.open(this->url);
     if (!cap.isOpened())
@@ -64,8 +66,5 @@ void CCTV::process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition
     }
     cap.release();
     cv::destroyAllWindows();
-}
-
-std::thread CCTV::start_thread(){
-     t = std::thread(&CCTV::process_video, this);
+    return;
 }

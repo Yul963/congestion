@@ -24,7 +24,7 @@ void status(){
 
 }
 
-void add_cctv(){
+void cctv_management(){
 
 }
 
@@ -33,27 +33,33 @@ void settings(){
 }
 
 int main() {
-    string model_path = "model_scripted_cpu.pt";
-    ImageProcessor ImgP;
+    ImageProcessor *ImgP;
+    try {
+        ImgP = new ImageProcessor();
+    }
+    catch(...){
+        exit(0);
+    }
+
     //for()
     try {
-        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1", cv::imread("image.jpg"));
+        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1","location1", cv::imread("image.jpg"));
     } catch (...) {
         cctvs.pop_back();
     }
 
-    threads.emplace_back([&]() {ImgP.process_image(q,mtx,conv,model_path);});
+    threads.emplace_back([&]() {ImgP->process_image(q,mtx,conv);});
     for (auto& cctv : cctvs){
         threads.emplace_back([&]() { cctv.process_video(q, mtx, conv); });
     }
-        
+
     for (auto& t : threads)
         t.detach();
 
     int input;
     while(1){
         cout<<"1. see current status"<<endl
-        <<"2. add cctv"<<endl
+        <<"2. add/delete cctv"<<endl
         <<"3. settings"<<endl
         <<"4. quit"<<endl
         <<"input: ";
@@ -65,12 +71,13 @@ int main() {
                 status();
                 break;
             case 2:
-                add_cctv();
+                cctv_management();
                 break;
             case 3:
                 settings();
                 break;
             case 4:
+                delete ImgP;
                 return 0;
                 break;
             default:

@@ -12,8 +12,24 @@
 #include <condition_variable>
 #include <ImageProcessor.hpp>
 
+ImageProcessor::ImageProcessor() : device(torch::kCPU) {
+    if (torch::cuda::is_available()) {
+        device = torch::Device(torch::kCUDA, 0); // Set current device to CUDA device 0
+        std::cout << "CUDA is available. Using GPU." << std::endl;
+    } else {
+        std::cout << "CUDA is not available. Using CPU." << std::endl;
+    }
+    std::cout<<"loading model...";
+    try {
+        module = torch::jit::load("model_scripted_cpu.pt");
+    }
+    catch (const c10::Error& e) {
+        throw std::runtime_error("Error loading the model.");
+    }
+    std::cout<<"done."<<std::endl;;
+}
+
 torch::Tensor ImageProcessor::post_process(cv::Mat image){
-    // 이미지 전처리
     //cvtColor(image, image, cv::COLOR_BGR2RGB);
     resize(image, image, cv::Size(400, 400));
     
@@ -26,7 +42,6 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".jpg");
     imwrite(img_path, image);
 
-    // MEAN, STD 값으로 정규화
     float MEAN[] = {0.48897059, 0.46548275, 0.4294};
     float STD[] = {0.22861765, 0.22948039, 0.24054667};
 
@@ -35,23 +50,9 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     float_image -= cv::Scalar(MEAN[0], MEAN[1], MEAN[2]);
     float_image /= cv::Scalar(STD[0], STD[1], STD[2]);
 
-    // 텐서 변환
     torch::Tensor input_tensor = torch::from_blob(float_image.data, {1, 400, 400, 3}).permute({0, 3, 1, 2});
 
     return input_tensor;
-}
-
-    // 토치스크립트 모델 로드
-torch::jit::script::Module ImageProcessor::load_model(std::string& model_path){
-    torch::jit::script::Module module;
-    try {
-        module = torch::jit::load(model_path);
-    }
-    catch (const c10::Error& e) {
-        std::cerr << "Error loading the model\n";
-        exit(0);
-    }
-    return module;
 }
 
 cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1 to color
@@ -63,24 +64,14 @@ cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1
     return mask_image;
 }
 
-void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv, std::string& model_path){
+void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv){
     std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
-
-    torch::Device device(torch::kCPU);
-    if (torch::cuda::is_available()) {
-        device = torch::Device(torch::kCUDA, 0); // Set current device to CUDA device 0
-        std::cout << "CUDA is available. Using GPU." << std::endl;
-    } else {        
-        std::cout << "CUDA is not available. Using CPU." << std::endl;
-    }
+    std::chrono::duration<double> elapsed_seconds;
     
     torch::NoGradGuard no_grad;
 
-    std::cout<<"loading model...";
-    torch::jit::script::Module module = load_model(model_path);
     module.eval();
     module.to(device);
-    std::cout<<"done."<<std::endl;;
     //module.forward({torch::zeros({1, 3, 400, 400})});
 
     torch::Tensor output;
@@ -103,7 +94,7 @@ void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std:
         if (!img_path.empty())
             img_path.clear();
         img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
-        std::chrono::duration<double> elapsed_seconds = end_time - start_time;
+        elapsed_seconds = end_time - start_time;
         std::cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< std::endl;
         imwrite(img_path, image);
     }
