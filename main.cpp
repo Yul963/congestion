@@ -7,8 +7,8 @@
 #include <condition_variable>
 #include <map>
 #include <vector>
-#include <congestion_cal.hpp>
-#include <vid_processing.hpp>
+#include <ImageProcessor.hpp>
+#include <VideoProcessor.hpp>
 
 using namespace std;
 using namespace cv;
@@ -17,8 +17,8 @@ mutex mtx;
 condition_variable conv; 
 queue<Mat> q;
 
-vector<struct cctv> cctv_info; // cctv 정보를 저장하는 벡터
-vector<thread> threads;// 스레드 저장 벡터
+vector<thread> threads;
+vector<class CCTV> cctvs;
 
 void status(){
 
@@ -34,13 +34,19 @@ void settings(){
 
 int main() {
     string model_path = "model_scripted_cpu.pt";
+    ImageProcessor ImgP;
+    //for()
+    try {
+        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1", cv::imread("image.jpg"));
+    } catch (...) {
+        cctvs.pop_back();
+    }
 
-    //database로부터 url과 기준 image를 읽어 url_image 벡터에 추가하는 과정 필요
-    cctv_info.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1", cv::imread("image.jpg"));
-
-    threads.emplace_back(process_image, ref(q),ref(mtx),ref(conv),ref(model_path));//스레드 벡터에 이미지 처리 스레드 추가
-    for (auto& info : cctv_info)//cctv 정보로 cctv 처리 스레드 추가
-        threads.emplace_back(process_video, ref(q),ref(mtx),ref(conv),ref(info));
+    threads.emplace_back([&]() {ImgP.process_image(q,mtx,conv,model_path);});
+    for (auto& cctv : cctvs){
+        threads.emplace_back([&]() { cctv.process_video(q, mtx, conv); });
+    }
+        
     for (auto& t : threads)
         t.detach();
 

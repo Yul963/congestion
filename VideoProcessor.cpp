@@ -2,25 +2,29 @@
 #include <iostream>
 #include <condition_variable>
 #include <string>
-#include <vid_processing.hpp>
+#include <thread>
+#include <VideoProcessor.hpp>
 
-int sec = 10;
-bool see_windows;
+CCTV::CCTV(std::string url, std::string name, cv::Mat base_image){
+    sec = 10;
+    see_windows = false;
+    this->url = url;
+    this->name = name;
+    this->base_image = base_image;
+    std::cout<<"opening VideoCapture of "<< this->name << "...";
+    cap.open(this->url);
+    if (!cap.isOpened())
+        throw std::runtime_error("Error opening the rtsp stream.");
+    std::cout<<"done."<<std::endl;
+}
 
-void change_sec(int s){
+void CCTV::change_sec(int s){
     sec = s;
 }
 
-void process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv, struct cctv& info) {
-    std::cout<<"getting VideoCapture of "<< info.name << "...";
-    cv::VideoCapture cap(info.url);
-    if (!cap.isOpened()) {
-        std::cerr << "Error opening the rtsp stream." << std::endl;
-        return;
-    }
-    std::cout<<"done."<<std::endl;
+void CCTV::process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv) {
     // Create a window to display the captured frames
-    cv::namedWindow(info.name, cv::WINDOW_NORMAL);
+    cv::namedWindow(name, cv::WINDOW_NORMAL);
     int fps = cap.get(cv::CAP_PROP_FPS);
     int frame_interval;
     int current_frame = 0;
@@ -40,7 +44,7 @@ void process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_varia
         }
 
         // Display the captured frame
-        cv::imshow(info.name, frame);
+        cv::imshow(name, frame);
 
         // Wait for 1ms and check if the user has pressed the 'q' key
         if (cv::waitKey(1) == 'q') {
@@ -60,4 +64,8 @@ void process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_varia
     }
     cap.release();
     cv::destroyAllWindows();
+}
+
+std::thread CCTV::start_thread(){
+     t = std::thread(&CCTV::process_video, this);
 }
