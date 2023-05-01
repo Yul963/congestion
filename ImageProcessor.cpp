@@ -13,12 +13,14 @@
 #include <ImageProcessor.hpp>
 
 ImageProcessor::ImageProcessor() : device(torch::kCPU) {
+    //device를 cpu로 생성하고, cuda가 사용가능하면 cuda로 바꿔줌
     if (torch::cuda::is_available()) {
-        device = torch::Device(torch::kCUDA, 0); // Set current device to CUDA device 0
+        device = torch::Device(torch::kCUDA, 0);
         std::cout << "CUDA is available. Using GPU." << std::endl;
     } else {
         std::cout << "CUDA is not available. Using CPU." << std::endl;
     }
+    //정해진 경로의 모델을 로드
     std::cout<<"loading model...";
     try {
         module = torch::jit::load("model_scripted_cpu.pt");
@@ -29,8 +31,8 @@ ImageProcessor::ImageProcessor() : device(torch::kCPU) {
     std::cout<<"done."<<std::endl;;
 }
 
+//정규화 등의 이미지 전처리 수행하고 텐서로 변환해서 리턴
 torch::Tensor ImageProcessor::post_process(cv::Mat image){
-    //cvtColor(image, image, cv::COLOR_BGR2RGB);
     resize(image, image, cv::Size(400, 400));
     
     if (!std::filesystem::exists("examples")) {
@@ -55,7 +57,8 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     return input_tensor;
 }
 
-cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1 to color
+//출력 텐서를 이미지로 변환함
+cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){
     tensor = torch::softmax(tensor.squeeze(0), 0).argmax(0).cpu().to(torch::kUInt8);
 
     cv::Mat mask_image(tensor.size(0), tensor.size(1), CV_8UC1, tensor.data_ptr());
@@ -64,6 +67,7 @@ cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){//opt 0 to mask, 1
     return mask_image;
 }
 
+//로드한 모델로 q에 들어온 이미지를 계속 처리함
 void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv){
     std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
     std::chrono::duration<double> elapsed_seconds;
@@ -100,6 +104,7 @@ void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std:
     }
 }
 
+//이미지들이 있는 벡터를 받아 혼잡도 계산
 float get_congestion(std::vector<cv::Mat> base_images, std::vector<cv::Mat> target_image){
     cv::Mat merged_base, merged_target;
     cv::vconcat(base_images, merged_base);
@@ -113,6 +118,7 @@ float get_congestion(std::vector<cv::Mat> base_images, std::vector<cv::Mat> targ
     return target >= base ? 0.0f : (float)(base-target)/(float)base;
 }
 
+//img_path의 이미지를 로드함
 cv::Mat getImage(std::string& img_path){
     cv::Mat image;
     if (!std::ifstream(img_path).good()){
