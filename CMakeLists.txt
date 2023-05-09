@@ -25,6 +25,7 @@ find_package(Torch REQUIRED)
 #find_package(CUDA REQUIRED)
 #find_package(CUDNN REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Threads REQUIRED)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
 
 include_directories(include)
@@ -36,8 +37,9 @@ add_library(sqlite3 ${SQLITE_ROOT}/sqlite3.c)
 add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp LocalDatabase.cpp)
 
 #target_link_libraries(${NAME} ${CUDA_LIBRARIES} ${CUDNN_LIBRARIES})
+target_link_libraries(${NAME} Threads::Threads)
 target_link_libraries(${NAME} ${TORCH_LIBRARIES})
 target_link_libraries(${NAME} ${OpenCV_LIBS})
 target_link_libraries(${NAME} sqlite3)
 
-set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 23)
+set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 20)

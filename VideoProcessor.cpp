@@ -8,14 +8,16 @@
 CCTV::CCTV(std::string url, std::string name, std::string location,cv::Mat base_image){
     sec = 10;
     see_windows = false;
+    stop_flag = false;
     this->url = url;
     this->name = name;
     this->location = location;
     this->base_image = base_image;
     
     //url로부터 비디오를 받는 데 실패하면 throw
-    std::cout<<"opening VideoCapture of "<< this->name << "...";
+    std::cout<<"opening VideoCapture of "<< this->name << "..." << std::endl;
     cap.open(this->url);
+
     if (!cap.isOpened())
         throw std::runtime_error("Error opening the rtsp stream.");
     std::cout<<"done."<<std::endl;
@@ -23,6 +25,10 @@ CCTV::CCTV(std::string url, std::string name, std::string location,cv::Mat base_
 
 void CCTV::change_sec(int s){
     sec = s;
+}
+
+void CCTV::set_stop(){
+    stop_flag = true;
 }
 
 //sec마다 비디오의 한 프레임을 큐에 추가. 추가된 프레임은 ImageProcessor::process_image에서 처리
@@ -34,7 +40,7 @@ void CCTV::process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition
     int current_frame = 0;
     cv::Mat frame;
     bool ret;
-    while (true) {
+    while (!stop_flag) {
         ret = cap.read(frame);
 
         if (!ret) {

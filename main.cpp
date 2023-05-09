@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -22,6 +23,14 @@ queue<Mat> q;
 vector<thread> threads;
 //CCTV객체들을 넣는 벡터
 vector<class CCTV> cctvs;
+//vector<pair<vector<class CCTV>, float>> rooms;
+//pair.first, pair.second
+void add_junk_q(){
+    std::unique_lock<std::mutex> lock(mtx);
+    cv::Mat j;
+    q.push(j);
+    conv.notify_all();
+}
 
 void status(){
 
@@ -40,15 +49,16 @@ int main() {
     try {
         ImgP = new ImageProcessor();
     }
-    catch(...){
-        exit(0);
+    catch(exception& e) {
+        cout << "Exception : " << e.what() << endl << "exit program."<< endl;
+        return 0;
     }
 
     //cctv 데이터베이스로부터 정보를 읽어 모든 cctv 정보를  cctvs.emplace_back해주는 과정 필요
     try {
-        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1","location1", cv::imread("image.jpg"));
+        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1","location1", getImage("image.jpg"));
     } catch (...) {
-        cctvs.pop_back();
+
     }
 
     threads.emplace_back([&]() {ImgP->process_image(q,mtx,conv);});//ImageProcessor의 process_image를 스레드로 실행
@@ -67,7 +77,8 @@ int main() {
         <<"4. quit"<<endl
         <<"input: ";
         cin>>input;
-        if(input>0 && input<4){
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        if(input>0 && input<5){
             switch (input)
             {
             case 1:
@@ -80,13 +91,16 @@ int main() {
                 settings();
                 break;
             case 4:
+                ImgP->set_stop();
+                add_junk_q();
                 delete ImgP;
+                for (auto& cctv : cctvs)
+                    cctv.set_stop();
                 return 0;
-                break;
             default:
                 break;
             }
         }else
-            cout<<"input valid numbers(1~3)"<<endl; 
+            cout<<"input valid numbers(1~4)"<<endl; 
     }
 }
