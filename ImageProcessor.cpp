@@ -14,6 +14,8 @@
 
 ImageProcessor::ImageProcessor() : device(torch::kCPU) {
     //device를 cpu로 생성하고, cuda가 사용가능하면 cuda로 바꿔줌
+    size = 224;
+    stop_flag = false;
     if (torch::cuda::is_available()) {
         device = torch::Device(torch::kCUDA, 0);
         std::cout << "CUDA is available. Using GPU." << std::endl;
@@ -21,9 +23,9 @@ ImageProcessor::ImageProcessor() : device(torch::kCPU) {
         std::cout << "CUDA is not available. Using CPU." << std::endl;
     }
     //정해진 경로의 모델을 로드
-    std::cout<<"loading model...";
+    std::cout<<"loading model..." << std::endl;
     try {
-        module = torch::jit::load("model_scripted_cpu.pt");
+        module = torch::jit::load("model_scripted_cpu_224.pt");
     }
     catch (const c10::Error& e) {
         throw std::runtime_error("Error loading the model.");
@@ -33,7 +35,7 @@ ImageProcessor::ImageProcessor() : device(torch::kCPU) {
 
 //정규화 등의 이미지 전처리 수행하고 텐서로 변환해서 리턴
 torch::Tensor ImageProcessor::post_process(cv::Mat image){
-    resize(image, image, cv::Size(400, 400));
+    resize(image, image, cv::Size(size, size));
     
     if (!std::filesystem::exists("examples")) {
         std::filesystem::create_directory("examples");
@@ -52,7 +54,7 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     float_image -= cv::Scalar(MEAN[0], MEAN[1], MEAN[2]);
     float_image /= cv::Scalar(STD[0], STD[1], STD[2]);
 
-    torch::Tensor input_tensor = torch::from_blob(float_image.data, {1, 400, 400, 3}).permute({0, 3, 1, 2});
+    torch::Tensor input_tensor = torch::from_blob(float_image.data, {1, size, size, 3}).permute({0, 3, 1, 2});
 
     return input_tensor;
 }
@@ -67,6 +69,10 @@ cv::Mat ImageProcessor::tensor_to_image(torch::Tensor tensor){
     return mask_image;
 }
 
+void ImageProcessor::set_stop(){
+    stop_flag = true;
+}
+
 //로드한 모델로 q에 들어온 이미지를 계속 처리함
 void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv){
     std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
@@ -76,16 +82,18 @@ void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std:
 
     module.eval();
     module.to(device);
-    //module.forward({torch::zeros({1, 3, 400, 400})});
-
+    //module.forward({torch::zeros({1, 3, size, size})});
+    
     torch::Tensor output;
     std::string img_path;
     cv::Mat image;
     torch::Tensor input_tensor;
     while (true)
-    {
+    {   
         std::unique_lock<std::mutex> lock(mtx);
         conv.wait(lock, [&q]{ return !q.empty(); });
+        if(stop_flag)
+            break;
         start_time = std::chrono::system_clock::now();
         image = q.front();
         q.pop();
@@ -119,16 +127,16 @@ float get_congestion(std::vector<cv::Mat> base_images, std::vector<cv::Mat> targ
 }
 
 //img_path의 이미지를 로드함
-cv::Mat getImage(std::string& img_path){
+cv::Mat getImage(std::string img_path){
     cv::Mat image;
     if (!std::ifstream(img_path).good()){
         std::cout << "File not found: " << img_path << std::endl;
-        exit(0);
+        return image;
     }
     image = cv::imread(img_path, cv::IMREAD_COLOR);
     if (image.empty()){
             std::cout << "Error: Unable to load image" << std::endl;
-            exit(0);
+            return image;
     }
     return image;
 }
