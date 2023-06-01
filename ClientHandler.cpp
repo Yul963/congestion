@@ -9,7 +9,7 @@
 #include <boost/asio/ip/tcp.hpp>
 
 // webserver url로 수정 필요 (현재 json response test api url)
-#define HOST "https://httpbin.org/post" 
+#define HOST "jsonplaceholder.typicode.com" 
 #define CCTVNUM 2
 
 using namespace std;        
@@ -37,7 +37,6 @@ string make_json_string(string fname, string nametag, double value){
     (cctv가 한 시설에 여러 대일 경우, 아직 카메라 2대)
 */
 boost::json::array make_json_array(CongestionPair *args){
-
     boost::json::array json_data = {};
     boost::json::value jv;
 
@@ -47,7 +46,6 @@ boost::json::array make_json_array(CongestionPair *args){
             json_data.push_back(jv);
         }
     }
-
     return json_data;
 }
 
@@ -106,7 +104,8 @@ int send_json(string json){
     return 0;
 }
 
-int main(int argc, char* argv[]){
+// simple test function
+int test(){
     CongestionPair list[CCTVNUM];
 
     //test code
