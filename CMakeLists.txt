@@ -26,12 +26,15 @@ find_package(Torch REQUIRED)
 #find_package(CUDNN REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Threads REQUIRED)
+find_package(Boost 1.82 COMPONENTS system filesystem REQUIRED) #////add boost
+
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
 
 include_directories(include)
 include_directories(${SQLITE_ROOT})
 #include_directories(${CUDA_INCLUDE_DIRS})
 #include_directories(${CUDNN_INCLUDE_DIRS})
+include_directories($(Boost_INCLUDE_DIRS)) #////add boost
 
 add_library(sqlite3 ${SQLITE_ROOT}/sqlite3.c)
 add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp LocalDatabase.cpp)
@@ -41,5 +44,5 @@ target_link_libraries(${NAME} Threads::Threads)
 target_link_libraries(${NAME} ${TORCH_LIBRARIES})
 target_link_libraries(${NAME} ${OpenCV_LIBS})
 target_link_libraries(${NAME} sqlite3)
-
+target_link_libraries(${NAME} ${Boost_LIBRARIES}) #////add boost
 set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 20)
