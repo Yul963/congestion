@@ -4,20 +4,40 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
+#include <thread>
 
 class CCTV{
     private:
-        int sec;
-        bool see_windows;
-        bool stop_flag;
-        std::string url, name, location;
-        cv::Mat base_image;
+        std::string url, name;
         cv::VideoCapture cap;
-        std::thread t;
+        cv::Mat frame;
+        bool stop_flag;
+        bool window;
 
     public:
-        CCTV(std::string url, std::string name, std::string location, cv::Mat base_image);
-        void change_sec(int s);
+        CCTV(std::string url, std::string name);
+        cv::Mat get_current_frame();
         void set_stop();
-        void process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv);
+        void process_video();
+        void see_window();
+};
+
+class ROOM{
+    private:
+        std::vector<class CCTV> cctvs;
+        std::string location;
+        float congestion;
+        int base;
+        std::vector<std::thread> threads;
+        std::vector<cv::Mat> images;
+
+    public:
+        ROOM(int base, std::string location);
+        void add_cctv(std::string url, std::string name);
+        float get_congestion(std::vector<cv::Mat> base_images);
+        void set_base(std::vector<cv::Mat> base_images);
+        std::vector<cv::Mat> get_target_images();
+        void run_threads();
+        void stop_threads();
 };

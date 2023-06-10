@@ -15,6 +15,7 @@
 ImageProcessor::ImageProcessor() : device(torch::kCPU) {
     //device를 cpu로 생성하고, cuda가 사용가능하면 cuda로 바꿔줌
     size = 224;
+    duration_second=60;
     stop_flag = false;
     if (torch::cuda::is_available()) {
         device = torch::Device(torch::kCUDA, 0);
@@ -30,7 +31,10 @@ ImageProcessor::ImageProcessor() : device(torch::kCPU) {
     catch (const c10::Error& e) {
         throw std::runtime_error("Error loading the model.");
     }
-    std::cout<<"done."<<std::endl;;
+    torch::NoGradGuard no_grad;
+    module.eval();
+    module.to(device);
+    std::cout<<"done."<<std::endl;
 }
 
 //정규화 등의 이미지 전처리 수행하고 텐서로 변환해서 리턴
@@ -73,57 +77,35 @@ void ImageProcessor::set_stop(){
     stop_flag = true;
 }
 
-//로드한 모델로 q에 들어온 이미지를 계속 처리함
-void ImageProcessor::process_image(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv){
-    std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
-    std::chrono::duration<double> elapsed_seconds;
-    
-    torch::NoGradGuard no_grad;
+void ImageProcessor::set_duration(int sec){
+    duration_second = sec;
+}
 
-    module.eval();
-    module.to(device);
+void ImageProcessor::process_image(cv::Mat image){//시간 나면 std::vector<cv::Mat> images로 수정
+    
+    //std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
+    //std::chrono::duration<double> elapsed_seconds;
     //module.forward({torch::zeros({1, 3, size, size})});
     
     torch::Tensor output;
     std::string img_path;
-    cv::Mat image;
     torch::Tensor input_tensor;
-    while (true)
-    {   
-        std::unique_lock<std::mutex> lock(mtx);
-        conv.wait(lock, [&q]{ return !q.empty(); });
-        if(stop_flag)
-            break;
-        start_time = std::chrono::system_clock::now();
-        image = q.front();
-        q.pop();
-        lock.unlock();
-        input_tensor = post_process(image).to(device);
-        //std::cout<< input_tensor.requires_grad()<<"  "<< torch::autograd::GradMode::is_enabled()<<std::endl;
-        output = module.forward({input_tensor}).toTensor();
-        image = tensor_to_image(output);
-        end_time = std::chrono::system_clock::now();
-        if (!img_path.empty())
-            img_path.clear();
-        img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
-        elapsed_seconds = end_time - start_time;
-        std::cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< std::endl;
-        imwrite(img_path, image);
-    }
-}
 
-//이미지들이 있는 벡터를 받아 혼잡도 계산
-float get_congestion(std::vector<cv::Mat> base_images, std::vector<cv::Mat> target_image){
-    cv::Mat merged_base, merged_target;
-    cv::vconcat(base_images, merged_base);
-    cv::vconcat(target_image, merged_target);
-    int base = (float)cv::countNonZero(merged_base);
-    if (base==0){
-        std::cout<<"base_image countNonZero returned 0. check base_image."<<std::endl;
-        return -1.0f;
-    }
-    int target = cv::countNonZero(merged_target);
-    return target >= base ? 0.0f : (float)(base-target)/(float)base;
+    //start_time = std::chrono::system_clock::now();
+
+    input_tensor = post_process(image).to(device);
+    //std::cout<< input_tensor.requires_grad()<<"  "<< torch::autograd::GradMode::is_enabled()<<std::endl;
+    output = module.forward({input_tensor}).toTensor();
+    image = tensor_to_image(output);
+    
+    if (!img_path.empty())
+        img_path.clear();
+    img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
+    imwrite(img_path, image);
+
+    //end_time = std::chrono::system_clock::now();
+    //elapsed_seconds = end_time - start_time;
+    //std::cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< std::endl;
 }
 
 //img_path의 이미지를 로드함

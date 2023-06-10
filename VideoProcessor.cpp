@@ -5,15 +5,11 @@
 #include <thread>
 #include <VideoProcessor.hpp>
 
-CCTV::CCTV(std::string url, std::string name, std::string location,cv::Mat base_image){
-    sec = 10;
-    see_windows = false;
-    stop_flag = false;
+CCTV::CCTV(std::string url, std::string name){
     this->url = url;
     this->name = name;
-    this->location = location;
-    this->base_image = base_image;
-    
+    stop_flag = false;
+    window = false;
     //url로부터 비디오를 받는 데 실패하면 throw
     std::cout<<"opening VideoCapture of "<< this->name << "..." << std::endl;
     cap.open(this->url);
@@ -23,57 +19,109 @@ CCTV::CCTV(std::string url, std::string name, std::string location,cv::Mat base_
     std::cout<<"done."<<std::endl;
 }
 
-void CCTV::change_sec(int s){
-    sec = s;
-}
-
 void CCTV::set_stop(){
     stop_flag = true;
 }
 
-//sec마다 비디오의 한 프레임을 큐에 추가. 추가된 프레임은 ImageProcessor::process_image에서 처리
-void CCTV::process_video(std::queue<cv::Mat>& q, std::mutex& mtx, std::condition_variable& conv) {
-    // Create a window to display the captured frames
-    cv::namedWindow(name, cv::WINDOW_NORMAL);
+cv::Mat CCTV::get_current_frame(){
+    return frame.clone();
+}
+
+void CCTV::see_window(){
+    if(frame.empty())
+        std::cout<<"stream is not active."<<std::endl;
+    else
+        window = true;
+}
+
+void CCTV::process_video() {//영상을 계속 받아 frame 업데이트
     int fps = cap.get(cv::CAP_PROP_FPS);
     int frame_interval;
-    int current_frame = 0;
-    cv::Mat frame;
     bool ret;
+    bool is_opened=false;
     while (!stop_flag) {
         ret = cap.read(frame);
-
         if (!ret) {
             std::cout << "Error: Unable to read the frame from the video capture" << std::endl;
             break;
         }
-
         if (frame.empty()) {
             std::cerr << "End of rtsp stream." << std::endl;
             break;
         }
-
-        // Display the captured frame
-        cv::imshow(name, frame);
-
-        // Wait for 1ms and check if the user has pressed the 'q' key
-        if (cv::waitKey(1) == 'q') {
-            std::cout << "quit streaming video." << std::endl;
-            break;
-        }
-
-        current_frame++;
-        frame_interval = fps * sec;
-        //sec마다 이미지 큐에 추가
-        if (current_frame%frame_interval == 0) {
-            std::unique_lock<std::mutex> lock(mtx);
-            //std::cout<< sec << std::endl;
-            current_frame = 0;
-            q.push(frame);
-            conv.notify_all();
+        if(window){
+            if(!is_opened){
+                cv::namedWindow(name, cv::WINDOW_NORMAL);
+                is_opened = true;
+            }
+            cv::imshow(name, frame);
+            if (cv::waitKey(1) == 'q') {
+                std::cout << "quit showing video." << std::endl;
+                cv::destroyAllWindows();
+                is_opened=false;
+            }
         }
     }
     cap.release();
-    cv::destroyAllWindows();
+    if(is_opened)
+        cv::destroyAllWindows();
     return;
 }
+
+ROOM::ROOM(int base, std::string location){
+    if (base==0){
+        std::cout<<"base not set."<<std::endl;
+    }
+    this->base = base;
+    this->location = location;
+}
+
+std::vector<cv::Mat> ROOM::get_target_images(){
+    images.clear();
+    for (auto& cctv : cctvs){
+        images.emplace_back(cctv.get_current_frame());
+    }
+    return images;
+}
+
+void ROOM::add_cctv(std::string url, std::string name){
+    try {
+        cctvs.emplace_back(url, name);
+    } catch (...) {
+        
+    }
+}
+
+float ROOM::get_congestion(std::vector<cv::Mat> target_images){
+    cv::Mat merged_target;
+    cv::vconcat(target_images, merged_target);
+    int target = cv::countNonZero(merged_target);
+    return target >= base ? 0.0f : (float)(base-target)/(float)base;
+}
+
+void ROOM::set_base(std::vector<cv::Mat> base_images){
+    cv::Mat merged_base;
+    cv::vconcat(base_images, merged_base);
+    base = (float)cv::countNonZero(merged_base);//0이 아닌 값 개수(바닥 픽셀수)
+    if (base==0){
+        std::cout<<"base_image countNonZero returned 0. check base image."<<std::endl;
+    }
+    //base 값 저장하는 부분 필요
+
+    //추가
+}
+
+void ROOM::run_threads(){
+    for (auto& cctv : cctvs){
+        threads.emplace_back([&]() { cctv.process_video(); });
+    }
+    for (auto& t : threads)
+        t.detach();
+}
+
+void ROOM::stop_threads(){
+    for (auto& cctv : cctvs){
+        cctv.set_stop();
+    }
+}
+

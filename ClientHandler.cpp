@@ -110,7 +110,8 @@ int test(){
 
     //test code
     string facility = "center musium";
-    string nametag = "", double val = 0.;
+    string nametag = "";
+    double val = 0.;
     cout << "data 입력" << endl;
     cin >> nametag >> val;
     

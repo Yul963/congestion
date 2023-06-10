@@ -10,27 +10,14 @@
 #include <vector>
 #include <ImageProcessor.hpp>
 #include <VideoProcessor.hpp>
+#include <ClientHandler.hpp>
+
+#define DURATION_SEC 120
 
 using namespace std;
 using namespace cv;
 
-mutex mtx;
-condition_variable conv; 
-//이미지 처리를 위한 큐
-queue<Mat> q;
-
-//실행되는 스레드들을 넣는 벡터
-vector<thread> threads;
-//CCTV객체들을 넣는 벡터
-vector<class CCTV> cctvs;
-//vector<pair<vector<class CCTV>, float>> rooms;
-//pair.first, pair.second
-void add_junk_q(){
-    std::unique_lock<std::mutex> lock(mtx);
-    cv::Mat j;
-    q.push(j);
-    conv.notify_all();
-}
+vector<class ROOM> rooms;
 
 void status(){
 
@@ -40,11 +27,41 @@ void cctv_management(){
 
 }
 
-void settings(){
+bool stop = false;
 
+void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
+    chrono::time_point<chrono::system_clock> start_time, end_time;
+    chrono::duration<double> elapsed_seconds;
+
+    start_time = chrono::system_clock::now();
+    while(!stop){
+        
+        for (auto& room : rooms){
+            room.get_target_images();
+            for(auto& image : room.get_target_images()){
+                if (stop)
+                    break;
+                ImgP->process_image(image);
+            }
+            if (stop)
+                    break;
+        }
+        end_time = chrono::system_clock::now();
+        elapsed_seconds = end_time - start_time;
+        cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< endl;
+        if(chrono::duration_cast<chrono::seconds>(elapsed_seconds) < chrono::seconds(DURATION_SEC)){
+            auto remainingTime = chrono::seconds(DURATION_SEC) - chrono::duration_cast<chrono::seconds>(elapsed_seconds);
+            this_thread::sleep_for(remainingTime);
+        }
+    }
 }
 
 int main() {
+    cout << "PyTorch version: "
+    << TORCH_VERSION_MAJOR << "."
+    << TORCH_VERSION_MINOR << "."
+    << TORCH_VERSION_PATCH << endl;
+
     ImageProcessor *ImgP;
     try {
         ImgP = new ImageProcessor();
@@ -54,26 +71,24 @@ int main() {
         return 0;
     }
 
-    //cctv 데이터베이스로부터 정보를 읽어 모든 cctv 정보를  cctvs.emplace_back해주는 과정 필요
+    //데이터베이스로부터 ROOM, CCTV 정보를 읽어 객체 생성하는 코드 필요
     try {
-        cctvs.emplace_back("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1","location1", getImage("image.jpg"));
+        rooms.emplace_back(0, "room1");
+        for (auto& room : rooms){
+            room.add_cctv("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1");
+
+            room.run_threads();
+        }
     } catch (...) {
 
     }
 
-    threads.emplace_back([&]() {ImgP->process_image(q,mtx,conv);});//ImageProcessor의 process_image를 스레드로 실행
-    for (auto& cctv : cctvs){
-        threads.emplace_back([&]() { cctv.process_video(q, mtx, conv); });
-    }//CCTV의 process_video를 스레드로 실행, process_video가 큐에 이미지를 넣으면, process_image가 큐에 있는 이미지를 처리함
-
-    for (auto& t : threads)
-        t.detach();
+    thread work(&work_thread, ref(rooms), ref(ImgP));
+    work.detach();
 
     int input;
     while(1){
         cout<<"1. see current status"<<endl
-        <<"2. add/delete cctv"<<endl
-        <<"3. settings"<<endl
         <<"4. quit"<<endl
         <<"input: ";
         cin>>input;
@@ -87,15 +102,16 @@ int main() {
             case 2:
                 cctv_management();
                 break;
-            case 3:
-                settings();
-                break;
             case 4:
+                /*
                 ImgP->set_stop();
                 add_junk_q();
                 delete ImgP;
-                for (auto& cctv : cctvs)
-                    cctv.set_stop();
+                */
+               stop = true;
+                for (auto& room : rooms){
+                    room.stop_threads();
+                }
                 return 0;
             default:
                 break;
