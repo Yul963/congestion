@@ -5,7 +5,6 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
-#include <VideoProcessor.hpp>
 
 class ImageProcessor{
     private:
@@ -23,7 +22,7 @@ class ImageProcessor{
     cv::Mat tensor_to_image(torch::Tensor tensor);
     void set_stop();
     void set_duration(int sec);
-    void process_image(cv::Mat image);
+    void process_image(cv::Mat& image);
 };
 
 cv::Mat getImage(std::string img_path);

@@ -21,6 +21,7 @@ class CCTV{
         void set_stop();
         void process_video();
         void see_window();
+        std::string get_name();
 };
 
 class ROOM{
@@ -30,14 +31,17 @@ class ROOM{
         float congestion;
         int base;
         std::vector<std::thread> threads;
-        std::vector<cv::Mat> images;
 
     public:
         ROOM(int base, std::string location);
         void add_cctv(std::string url, std::string name);
-        float get_congestion(std::vector<cv::Mat> base_images);
+        float get_congestion();
+        void cal_congestion(std::vector<cv::Mat> base_images);
         void set_base(std::vector<cv::Mat> base_images);
         std::vector<cv::Mat> get_target_images();
+        std::vector<class CCTV> get_cctvs();
+        std::string get_location();
         void run_threads();
         void stop_threads();
+        void show_cctvs();
 };

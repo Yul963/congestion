@@ -44,7 +44,7 @@ include_directories(${BOOST_INCLUDE_DIR})
 
 link_directories(${BOOST_LIBRARY_DIR})
 add_library(sqlite3 ${SQLITE_ROOT}/sqlite3.c)
-add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp LocalDatabase.cpp ClientHandler.cpp)
+add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp LocalDatabase.cpp )#ClientHandler.cpp
 
 #target_link_libraries(${NAME} ${CUDA_LIBRARIES} ${CUDNN_LIBRARIES})
 target_link_libraries(${NAME} Threads::Threads)

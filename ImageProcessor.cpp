@@ -81,20 +81,14 @@ void ImageProcessor::set_duration(int sec){
     duration_second = sec;
 }
 
-void ImageProcessor::process_image(cv::Mat image){//시간 나면 std::vector<cv::Mat> images로 수정
+void ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<cv::Mat> images로 수정
     
-    //std::chrono::time_point<std::chrono::system_clock> start_time, end_time;
-    //std::chrono::duration<double> elapsed_seconds;
     //module.forward({torch::zeros({1, 3, size, size})});
-    
     torch::Tensor output;
     std::string img_path;
     torch::Tensor input_tensor;
 
-    //start_time = std::chrono::system_clock::now();
-
     input_tensor = post_process(image).to(device);
-    //std::cout<< input_tensor.requires_grad()<<"  "<< torch::autograd::GradMode::is_enabled()<<std::endl;
     output = module.forward({input_tensor}).toTensor();
     image = tensor_to_image(output);
     
@@ -102,10 +96,6 @@ void ImageProcessor::process_image(cv::Mat image){//시간 나면 std::vector<cv
         img_path.clear();
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
     imwrite(img_path, image);
-
-    //end_time = std::chrono::system_clock::now();
-    //elapsed_seconds = end_time - start_time;
-    //std::cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< std::endl;
 }
 
 //img_path의 이미지를 로드함

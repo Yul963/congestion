@@ -58,7 +58,8 @@ void CCTV::process_video() {//영상을 계속 받아 frame 업데이트
             if (cv::waitKey(1) == 'q') {
                 std::cout << "quit showing video." << std::endl;
                 cv::destroyAllWindows();
-                is_opened=false;
+                is_opened = false;
+                window = false;
             }
         }
     }
@@ -68,20 +69,34 @@ void CCTV::process_video() {//영상을 계속 받아 frame 업데이트
     return;
 }
 
+std::string CCTV::get_name(){
+    return name;
+}
+
 ROOM::ROOM(int base, std::string location){
     if (base==0){
-        std::cout<<"base not set."<<std::endl;
+        std::cout<<location<<" base not set."<<std::endl;
     }
+    this->congestion = 0.;
     this->base = base;
     this->location = location;
 }
 
 std::vector<cv::Mat> ROOM::get_target_images(){
-    images.clear();
+    std::vector<cv::Mat> images;
     for (auto& cctv : cctvs){
+        std::cout<<std::endl<<"get frame"<<std::endl;
         images.emplace_back(cctv.get_current_frame());
     }
     return images;
+}
+
+std::vector<class CCTV> ROOM::get_cctvs(){
+    return cctvs;
+}
+
+std::string ROOM::get_location(){
+    return location;
 }
 
 void ROOM::add_cctv(std::string url, std::string name){
@@ -92,20 +107,27 @@ void ROOM::add_cctv(std::string url, std::string name){
     }
 }
 
-float ROOM::get_congestion(std::vector<cv::Mat> target_images){
-    cv::Mat merged_target;
-    cv::vconcat(target_images, merged_target);
-    int target = cv::countNonZero(merged_target);
-    return target >= base ? 0.0f : (float)(base-target)/(float)base;
+void ROOM::cal_congestion(std::vector<cv::Mat> target_images){
+    int target=0;
+    for (auto& image : target_images){
+        target+=cv::countNonZero(image);
+    }
+    congestion = target >= base ? 0.0f : (float)(base-target)/(float)base;
+}
+
+float ROOM::get_congestion(){
+    return congestion;
 }
 
 void ROOM::set_base(std::vector<cv::Mat> base_images){
-    cv::Mat merged_base;
-    cv::vconcat(base_images, merged_base);
-    base = (float)cv::countNonZero(merged_base);//0이 아닌 값 개수(바닥 픽셀수)
-    if (base==0){
-        std::cout<<"base_image countNonZero returned 0. check base image."<<std::endl;
+    base=0;
+    for (auto& image : base_images){
+        //int numChannels = image.channels();
+        //std::cout << "Number of channels: " << numChannels << std::endl;
+        base+=cv::countNonZero(image);
     }
+    if (base==0)
+        std::cout<<"base_image countNonZero returned 0. check base image."<<std::endl;
     //base 값 저장하는 부분 필요
 
     //추가
@@ -122,6 +144,12 @@ void ROOM::run_threads(){
 void ROOM::stop_threads(){
     for (auto& cctv : cctvs){
         cctv.set_stop();
+    }
+}
+
+void ROOM::show_cctvs(){
+    for (auto& cctv : cctvs){
+        cctv.see_window();
     }
 }
 
