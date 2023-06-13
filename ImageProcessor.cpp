@@ -91,7 +91,9 @@ void ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<c
     input_tensor = post_process(image).to(device);
     output = module.forward({input_tensor}).toTensor();
     image = tensor_to_image(output);
-    
+
+
+    //imwrite 버그있어서 고쳐야함.
     /*
     if (!img_path.empty())
         img_path.clear();

@@ -24,7 +24,7 @@ set (BOOST_ROOT /home/yul/boost)
 set (BOOST_LIBRARY_DIR /home/yul/boost/stage/lib)
 set (BOOST_INCLUDE_DIR ${BOOST_ROOT})
 
-set(SQLITE_ROOT /home/yul/sqlite)
+#set(SQLITE_ROOT /home/yul/sqlite)
 set(CMAKE_GENERATOR Ninja)
 
 find_package(Torch 2.0.0 REQUIRED)
@@ -37,19 +37,19 @@ find_package(Boost 1.82.0 COMPONENTS system filesystem REQUIRED)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
 
 include_directories(include)
-include_directories(${SQLITE_ROOT})
+#include_directories(${SQLITE_ROOT})
 #include_directories(${CUDA_INCLUDE_DIRS})
 #include_directories(${CUDNN_INCLUDE_DIRS})
 include_directories(${BOOST_INCLUDE_DIR})
 
 link_directories(${BOOST_LIBRARY_DIR})
-add_library(sqlite3 ${SQLITE_ROOT}/sqlite3.c)
-add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp LocalDatabase.cpp )#ClientHandler.cpp
+#add_library(sqlite3 ${SQLITE_ROOT}/sqlite3.c)
+add_executable(${NAME} main.cpp VideoProcessor.cpp ImageProcessor.cpp)#ClientHandler.cpp
 
 #target_link_libraries(${NAME} ${CUDA_LIBRARIES} ${CUDNN_LIBRARIES})
 target_link_libraries(${NAME} Threads::Threads)
 target_link_libraries(${NAME} ${TORCH_LIBRARIES})
 target_link_libraries(${NAME} ${OpenCV_LIBS})
-target_link_libraries(${NAME} sqlite3)
+#target_link_libraries(${NAME} sqlite3)
 target_link_libraries(${NAME} ${BOOST_LIBRARIES})
 set_property(TARGET ${NAME} PROPERTY CXX_STANDARD 20)
