@@ -85,7 +85,7 @@ ROOM::ROOM(int base, std::string location){
 std::vector<cv::Mat> ROOM::get_target_images(){
     std::vector<cv::Mat> images;
     for (auto& cctv : cctvs){
-        std::cout<<std::endl<<"get frame"<<std::endl;
+        //std::cout<<std::endl<<"get frame"<<std::endl;
         images.emplace_back(cctv.get_current_frame());
     }
     return images;
@@ -122,15 +122,16 @@ float ROOM::get_congestion(){
 void ROOM::set_base(std::vector<cv::Mat> base_images){
     base=0;
     for (auto& image : base_images){
-        //int numChannels = image.channels();
-        //std::cout << "Number of channels: " << numChannels << std::endl;
+        int numChannels = image.channels();
+        std::cout << "Number of channels: " << numChannels <<"  "<<  cv::countNonZero(image) << std::endl;
         base+=cv::countNonZero(image);
     }
     if (base==0)
         std::cout<<"base_image countNonZero returned 0. check base image."<<std::endl;
-    //base 값 저장하는 부분 필요
+}
 
-    //추가
+int ROOM::get_base(){
+    return base;
 }
 
 void ROOM::run_threads(){

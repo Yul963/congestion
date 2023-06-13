@@ -12,11 +12,12 @@
 #include <VideoProcessor.hpp>
 //#include <ClientHandler.hpp>
 
-#define DURATION_SEC 120
+#define DURATION_SEC 20
 
 using namespace std;
 using namespace cv;
 
+mutex mtx;
 vector<class ROOM> rooms;
 bool stop = false;
 
@@ -25,13 +26,16 @@ void status(ImageProcessor* ImgP){
     bool is_empty=false;
     while(1){
         cout<<"<Location list>"<<endl;
+        cout << fixed;
+        cout.precision(3);
 
         for (auto& room : rooms){
-            cout<<i++<<". "<<room.get_location()<<endl
-            <<"Congestion: "<<room.get_congestion()<<endl
+            cout<<"\t"<<i++<<". "<<room.get_location()
+            <<"  Congestion: "<<room.get_congestion()
+            <<"|  Base value: "<<room.get_base()<<endl
             <<"\t<CCTV list>"<<endl;
             for(auto& cctv : room.get_cctvs()){
-                cout<<"\t"<<cctv.get_name()<<endl;
+                cout<<"\t\t"<<cctv.get_name()<<endl;
             }
         }
         i=0;
@@ -53,19 +57,26 @@ void status(ImageProcessor* ImgP){
                 images = room.get_target_images();
                 for(auto& image : images){
                     if(!image.empty()){
+                        unique_lock<mutex> lock(mtx);
+                        cout<<"is empty: "<<image.empty()<<endl;
                         ImgP->process_image(image);
                         cout<<"process image."<<endl;
                     }
                     else{
                         is_empty = true;
-                        cout<<"image is empty."<<endl; 
+                        //cout<<"image is empty."<<endl; 
                         break;
                     }
                     
                 }
                 if(!is_empty){
+                    cout<<"number of images: "<<images.size()<<endl;
                     room.set_base(images);
                     cout<<room.get_location()<<" base set."<<endl;
+                    //base 값 전송하는 부분 필요
+                    //////
+                    //////
+                    //추가
                 }
                 return;
             case 2:
@@ -75,8 +86,10 @@ void status(ImageProcessor* ImgP){
                 break;
             }
         }
-        else
+        else{
             cout<<"input valid index(0~"<< rooms.size()-1 <<")"<<endl;
+            break;
+        }
         
     }
 }
@@ -90,19 +103,28 @@ void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
         start_time = chrono::system_clock::now();
         for (auto& room : rooms){
             images = room.get_target_images();
+            cout<<"number of images: "<<images.size()<<endl;
             for(auto& image : images){
                 if (stop)
                     break;
-                if(!image.empty())
+                if(!image.empty()){
+                    unique_lock<mutex> lock(mtx);
+                    cout<<"is empty: "<<image.empty()<<endl;
                     ImgP->process_image(image);
+                }
                 else{
                     is_empty = true;
-                    cout<<"image is empty."<<endl; 
+                    //cout<<"image is empty."<<endl; 
                     break;
                 }
             }
-            if(!is_empty)
+            if(!is_empty){
                 room.cal_congestion(images);
+                //congestion 값 전송하는 부분 필요
+                //////
+                //////
+                //추가
+            }
             else
                 is_empty=false;
             if (stop)
@@ -110,16 +132,20 @@ void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
         }
         end_time = chrono::system_clock::now();
         elapsed_seconds = end_time - start_time;
-        cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< endl;
+        //cout << "Elapsed time: " << elapsed_seconds.count() << "s"<< endl;
         if(chrono::duration_cast<chrono::seconds>(elapsed_seconds) < chrono::seconds(DURATION_SEC)){
             auto remainingTime = chrono::seconds(DURATION_SEC) - chrono::duration_cast<chrono::seconds>(elapsed_seconds);
-            cout<<"sleep thread for "<< remainingTime.count() << "s"<<endl;
+            //cout<<"sleep thread for "<< remainingTime.count() << "s"<<endl;
             this_thread::sleep_for(remainingTime);
         }
     }
 }
 
 int main() {
+    //서버 인증하는 부분 필요
+    //////
+    //////
+    //추가
     ImageProcessor *ImgP;
     try {
         ImgP = new ImageProcessor();
@@ -129,7 +155,10 @@ int main() {
         return 0;
     }
 
-    //데이터베이스로부터 ROOM, CCTV 정보를 읽어 객체 생성하는 코드 필요
+    //서버 데이터베이스로부터 ROOM, CCTV 정보를 읽어와서 rooms, cctvs 생성하는 코드 필요
+    //////
+    //////
+    //추가
     try {
         rooms.emplace_back(0, "room1");
         for (auto& room : rooms){
@@ -157,7 +186,7 @@ int main() {
                 status(ImgP);
                 break;
             case 2:
-               stop = true;
+                stop = true;
                 for (auto& room : rooms){
                     room.stop_threads();
                 }

@@ -48,7 +48,7 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     current_time_t = std::chrono::system_clock::to_time_t(current_time);
     std::string img_path;
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".jpg");
-    imwrite(img_path, image);
+    //imwrite(img_path, image);
 
     float MEAN[] = {0.48897059, 0.46548275, 0.4294};
     float STD[] = {0.22861765, 0.22948039, 0.24054667};
@@ -92,10 +92,12 @@ void ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<c
     output = module.forward({input_tensor}).toTensor();
     image = tensor_to_image(output);
     
+    /*
     if (!img_path.empty())
         img_path.clear();
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
     imwrite(img_path, image);
+    */
 }
 
 //img_path의 이미지를 로드함

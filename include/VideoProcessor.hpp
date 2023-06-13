@@ -38,6 +38,7 @@ class ROOM{
         float get_congestion();
         void cal_congestion(std::vector<cv::Mat> base_images);
         void set_base(std::vector<cv::Mat> base_images);
+        int get_base();
         std::vector<cv::Mat> get_target_images();
         std::vector<class CCTV> get_cctvs();
         std::string get_location();
