@@ -25,7 +25,16 @@ string make_json_string(CongestionPair cp){
     return json;
 }
 // @overloaded
-string make_json_string(string fname, string nametag, double value){
+/*
+{
+    "fname": "국립중앙박물관",
+    "nametag": "cctv1",
+    "value": "0.64".
+    "timestamp": ""
+}
+*/
+
+string make_json_string(string fname, string nametag, double value){        //fname = facility, nametag = cctv, value = 혼잡도값
     struct CongestionPair cp = CongestionPair(fname, nametag, value);
     boost::json::value jv = boost::json::value_from(cp);
     string json = boost::json::serialize(jv);
@@ -35,7 +44,7 @@ string make_json_string(string fname, string nametag, double value){
 /* 
     혼잡도쌍 배열을 받아 json array화
     (cctv가 한 시설에 여러 대일 경우, 아직 카메라 2대)
-*/
+
 boost::json::array make_json_array(CongestionPair *args){
     boost::json::array json_data = {};
     boost::json::value jv;
@@ -48,6 +57,7 @@ boost::json::array make_json_array(CongestionPair *args){
     }
     return json_data;
 }
+*/
 
 //json string을 받아 http post
 int send_json(string json){
@@ -109,13 +119,14 @@ int test(){
     CongestionPair list[CCTVNUM];
 
     //test code
-    string facility = "center musium";
+    string facility = "국립중앙박물관";
     string nametag = "";
-    double val = 0.;
+    double val = 0.0;
     cout << "data 입력" << endl;
     cin >> nametag >> val;
+    CongestionPair a = CongestionPair(facility, nametag, val);
     
-    string json = make_json(facility, nametag, val);
+    string json = make_json(a);
     send_json(json);
 
     return 0;
