@@ -2,7 +2,7 @@
 #include <ctime>
 #include <boost/json.hpp>
 
-#define TIME_MAXSIZE = 80;
+#define TIME_MAXSIZE 80
 
 using namespace std;
 
@@ -11,7 +11,7 @@ struct CongestionPair{
     string fname;
     string nametag;
     double value;
-    string timestamp;
+    char* timestamp;
  
     CongestionPair(){
         fname = "";
@@ -23,10 +23,13 @@ struct CongestionPair{
     this->fname = facility_name;
     this->nametag = name_tag;
     this->value = cngst_value;
-    strftime(this->timestamp, TIME_MAXSIZE, "%Z-%m-%d %H:%M:%S", time(NULL));    //2023-06-16 13:26:01
+    time_t now = time(NULL);
+    strftime(this->timestamp, TIME_MAXSIZE, "%Z-%m-%d %H:%M:%S", localtime(&now));    //2023-06-16 13:26:01
     }
 };
 
+wstring initialize(string);
+vector<class ROOM> make_rooms(wstring);
 string make_json_string(CongestionPair);
 string make_json(string, string, double);
 boost::json::array make_json_array(CongestionPair*);
