@@ -10,7 +10,7 @@
 #include <vector>
 #include <ImageProcessor.hpp>
 #include <VideoProcessor.hpp>
-//#include <ClientHandler.hpp>
+#include <ClientHandler.hpp>
 
 #define DURATION_SEC 20
 
@@ -75,6 +75,7 @@ void status(ImageProcessor* ImgP){
                     cout<<room.get_location()<<" base set."<<endl;
                     //base 값 전송하는 부분 필요
                     //////
+
                     //////
                     //추가
                 }
@@ -122,6 +123,9 @@ void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
                 room.cal_congestion(images);
                 //congestion 값 전송하는 부분 필요
                 //////
+                CongestionPair cp = CongestionPair("ssu"/*기관명*/, "1"/*room name, 약속한대로 1*/, room.get_congestion());
+                string json = make_json_string(cp);
+                send_json(json);
                 //////
                 //추가
             }
@@ -157,6 +161,8 @@ int main() {
 
     //서버 데이터베이스로부터 ROOM, CCTV 정보를 읽어와서 rooms, cctvs 생성하는 코드 필요
     //////
+    wstring roomstring = initialize("ssu");      //facility name = ssu로 고정
+    // rooms = make_rooms(roomstring);
     //////
     //추가
     try {
