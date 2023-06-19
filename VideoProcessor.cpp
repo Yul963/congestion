@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <string>
 #include <thread>
+#include <mutex>
 #include <VideoProcessor.hpp>
 
 CCTV::CCTV(std::string url, std::string name){
@@ -85,7 +86,7 @@ ROOM::ROOM(int base, std::string location){
 std::vector<cv::Mat> ROOM::get_target_images(){
     std::vector<cv::Mat> images;
     for (auto& cctv : cctvs){
-        //std::cout<<std::endl<<"get frame"<<std::endl;
+        //std::cout<<std::endl<<"get frame of "<<cctv.get_name()<<std::endl;
         images.emplace_back(cctv.get_current_frame());
     }
     return images;
@@ -109,7 +110,9 @@ void ROOM::add_cctv(std::string url, std::string name){
 
 void ROOM::cal_congestion(std::vector<cv::Mat> target_images){
     int target=0;
+    
     for (auto& image : target_images){
+        //std::cout <<"cal_congestion: "<<  cv::countNonZero(image) << std::endl;
         target+=cv::countNonZero(image);
     }
     congestion = target >= base ? 0.0f : (float)(base-target)/(float)base;
@@ -119,11 +122,11 @@ float ROOM::get_congestion(){
     return congestion;
 }
 
-void ROOM::set_base(std::vector<cv::Mat> base_images){
+void ROOM::set_base(std::vector<cv::Mat>& base_images){
     base=0;
     for (auto& image : base_images){
-        int numChannels = image.channels();
-        std::cout << "Number of channels: " << numChannels <<"  "<<  cv::countNonZero(image) << std::endl;
+        //int numChannels = image.channels();
+        //std::cout <<"set_base: " <<  cv::countNonZero(image) << std::endl;
         base+=cv::countNonZero(image);
     }
     if (base==0)

@@ -1,5 +1,8 @@
 #include <iostream>
 #include <ctime>
+#include <locale>
+#include <codecvt>
+#include <string>
 #include <ClientHandler.hpp>
 #include <boost/json.hpp>
 #include <boost/beast/core.hpp>
@@ -8,10 +11,8 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/locale.hpp>
-
-// webserver url로 수정 필요 (현재 json response test api url)
-#define HOST "ec2-54-180-160-31.ap-northeast-2.compute.amazonaws.com/"
-#define PORT "80"
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 
 #define CCTVNUM 2       // cctv 개수
 
@@ -37,18 +38,19 @@ wstring initialize(string fname){
     
     beast::flat_buffer buffer;
     http::response<http::dynamic_body> res;
-    wstring encodedjson = L"";
+    wstring encodedjson;
     
     try{
-        auto const host = HOST;
-        auto const port = PORT;
+        std::string host = "ec2-54-180-160-31.ap-northeast-2.compute.amazonaws.com";
+        std::string port = "80";
         auto const target = "/get/info/facility/?fname=";
 
         bool isVer1_0 = false;
         int version = isVer1_0 ? 10 : 11;
 
-        auto const results = resolver.resolve(host, port);
-        stream.connect(results);
+        tcp::resolver::results_type endpoints = resolver.resolve(host, port);
+        auto endpoint = endpoints.begin();
+        stream.connect(endpoint->endpoint());
 
         string urlhost = host;
         urlhost += ":";
@@ -66,21 +68,34 @@ wstring initialize(string fname){
         http::read(stream, buffer, res);
 
         string json = beast::buffers_to_string(res.body().data());
-        encodedjson = boost::locale::conv::to_utf<wchar_t>(json, "EUC-KR");
-        // debugging line: gotten json
-        clog << "gotten value: " << json << endl;
+        std::string str = boost::locale::conv::to_utf<char>(json, "EUC-KR");
+        /*
+        std::istringstream iss(json);
+        boost::property_tree::ptree pt;
+        boost::property_tree::json_parser::read_json(iss, pt);
 
+        std::ostringstream oss;
+        boost::property_tree::json_parser::write_json(oss, pt, false);
+
+        std::string decodedString = boost::locale::conv::from_utf<char>(oss.str(), "UTF-8");
+        std::cout << "gotten value: " << decodedString << std::endl;
+        //cout<<  "gotten value: " << json << endl;
+        
+        encodedjson = std::wstring().assign(decodedString.begin(), decodedString.end());
+        wcout << "gotten value: " << encodedjson << endl;
+        */
+        encodedjson = boost::locale::conv::utf_to_utf<wchar_t>(str);
         //shutdown socket
         beast::error_code ec;
         stream.socket().shutdown(tcp::socket::shutdown_both, ec);
         if (ec && ec != beast::errc::not_connected){
             clog << "error: " << ec.message() << endl;
-            encodedjson = L"";
+            encodedjson.clear();
             return encodedjson;
         }
     } catch (exception const& ex) {
         clog << "exception: " << ex.what() << endl;
-        encodedjson = L"";
+        encodedjson.clear();
         return encodedjson;
     }
     return encodedjson;
@@ -113,14 +128,26 @@ wstring initialize(string fname){
         }
     }
 */
-vector<class ROOM> make_rooms(wstring jsonstr){
+/*
+vector<class ROOM> make_rooms(wstring wjsonstr){
     vector<class ROOM> rooms;
+
+    // std::wstring을 std::string으로 변환
+    std::wstringstream wss;
+    wss << wjsonstr;
+    std::wstring converted = wss.str();
+    std::string jsonstr(converted.begin(), converted.end());
+
+    // boost::json::parse() 함수 호출
     boost::json::value val = boost::json::parse(jsonstr);
     
     
 
     return rooms;
 }
+*/
+
+
 
 // @overloaded, json string 작성
 string make_json_string(CongestionPair cp){
@@ -138,9 +165,8 @@ string make_json_string(CongestionPair cp){
 }
 */
 // @overloaded
-string make_json_string(string fname, string nametag, double value){        //fname = facility, nametag = cctv, value = 혼잡도값
-    struct CongestionPair cp = CongestionPair(fname, nametag, value);
-    boost::json::value jv = boost::json::value_from(cp);
+string make_json_string(BasePair bp){        //fname = facility, nametag = cctv, value = 혼잡도값
+    boost::json::value jv = boost::json::value_from(bp);
     string json = boost::json::serialize(jv);
     return json;
 }
@@ -164,7 +190,8 @@ boost::json::array make_json_array(CongestionPair *args){
 */
 
 //json string을 받아 http post
-int send_json(string json){
+int send_json(string json, bool set){
+    //cout<<json<<endl;
     net::io_context ioc;
     tcp::resolver resolver(ioc);
     beast::tcp_stream stream(ioc);
@@ -172,9 +199,11 @@ int send_json(string json){
     beast::flat_buffer buffer;
     http::response<http::dynamic_body> res;
 
-    auto const host = HOST;
-    auto const port = PORT;
-    auto const target = "/update_congest/";         //target url
+    std::string host = "ec2-54-180-160-31.ap-northeast-2.compute.amazonaws.com";
+    std::string port = "80";
+    auto target = "/update_congest/";
+    if (set)
+        target = "/set_base/";
     bool isVer1_0 = false;
     int version = isVer1_0 ? 10 : 11;
 
@@ -182,7 +211,7 @@ int send_json(string json){
         auto const results = resolver.resolve(host, port);
         stream.connect(results);
 
-        string urlhost = HOST;
+        string urlhost = host;
         urlhost += ":";
         urlhost += port;
 
@@ -201,7 +230,7 @@ int send_json(string json){
         http::read(stream, buffer, res);
         
         string response = beast::buffers_to_string(res.body().data());
-        cout << response << endl;
+        //cout << response << endl;
         
         beast::error_code errcode;
         stream.socket().shutdown(tcp::socket::shutdown_both, errcode);
@@ -231,7 +260,59 @@ int test(){
     CongestionPair a = CongestionPair(facility, nametag, val);
     
     string json = make_json_string(a);
-    send_json(json);
+    send_json(json, false);
 
     return 0;
+}
+
+void tag_invoke(const boost::json::value_from_tag&, boost::json::value& jv, const CongestionPair& pair) {
+    jv = {
+        {"fname", pair.fname},
+        {"nametag", pair.nametag},
+        {"value", pair.value},
+        {"timestamp", pair.timestamp}
+    };
+}
+
+void tag_invoke(const boost::json::value_from_tag&, boost::json::value& jv, const BasePair& pair) {
+    jv = {
+        {"nametag", pair.nametag},
+        {"base", pair.base},
+    };
+}
+
+void make_rooms(std::wstring json, vector<class ROOM>& rooms){
+    boost::property_tree::wptree pt;
+    std::wstringstream ss(json);
+    boost::property_tree::read_json(ss, pt);
+
+    const boost::property_tree::wptree& buildings = pt.get_child(L"ssu.buildings");
+    for (const auto& building : buildings) {
+        std::string buildingName = boost::locale::conv::utf_to_utf<char>(building.first);;
+        
+        const boost::property_tree::wptree& buildingInfo = building.second;
+        std::wstring base = buildingInfo.get<std::wstring>(L"base");
+
+        std::string base_s(base.begin(), base.end());
+        std::string build(buildingName.begin(), buildingName.end());
+        if(base_s == "null"){
+            rooms.emplace_back(0, build);
+        }
+        else{
+            rooms.emplace_back(stoi(base_s), build);
+        }
+
+        const boost::property_tree::wptree& cctvs = buildingInfo.get_child(L"cctvs");
+        for (const auto& cctv : cctvs) {
+            std::wstring cctvId = cctv.first;
+            const boost::property_tree::wptree& cctvInfo = cctv.second;
+
+            std::wstring rtspUrl = cctvInfo.get<std::wstring>(L"rtsp_url");
+
+            std::string id(cctvId.begin(), cctvId.end());
+            std::string url(rtspUrl.begin(), rtspUrl.end());
+
+            rooms.back().add_cctv(url, id);
+        }
+    }
 }

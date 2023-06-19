@@ -15,7 +15,6 @@
 ImageProcessor::ImageProcessor() : device(torch::kCPU) {
     //device를 cpu로 생성하고, cuda가 사용가능하면 cuda로 바꿔줌
     size = 224;
-    duration_second=60;
     stop_flag = false;
     if (torch::cuda::is_available()) {
         device = torch::Device(torch::kCUDA, 0);
@@ -46,9 +45,19 @@ torch::Tensor ImageProcessor::post_process(cv::Mat image){
     }
     current_time = std::chrono::system_clock::now();
     current_time_t = std::chrono::system_clock::to_time_t(current_time);
+    
     std::string img_path;
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".jpg");
-    imwrite(img_path, image);
+    
+    if (std::filesystem::exists(img_path)) {
+        size_t lastDotIndex = img_path.find_last_of(".");
+        std::string filename = img_path.substr(0, lastDotIndex);
+        filename.append("-").append(".jpg");
+        imwrite(filename, image);
+    } else {
+        imwrite(img_path, image);
+    }
+    
 
     float MEAN[] = {0.48897059, 0.46548275, 0.4294};
     float STD[] = {0.22861765, 0.22948039, 0.24054667};
@@ -77,11 +86,7 @@ void ImageProcessor::set_stop(){
     stop_flag = true;
 }
 
-void ImageProcessor::set_duration(int sec){
-    duration_second = sec;
-}
-
-void ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<cv::Mat> images로 수정
+cv::Mat ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<cv::Mat> images로 수정
     
     //module.forward({torch::zeros({1, 3, size, size})});
     torch::Tensor output;
@@ -91,18 +96,20 @@ void ImageProcessor::process_image(cv::Mat& image){//시간 나면 std::vector<c
     input_tensor = post_process(image).to(device);
     output = module.forward({input_tensor}).toTensor();
     image = tensor_to_image(output);
-
+    
     if (!img_path.empty())
         img_path.clear();
     img_path.append("examples/").append(std::ctime(&current_time_t)).append(".png");
     if (std::filesystem::exists(img_path)) {
         size_t lastDotIndex = img_path.find_last_of(".");
         std::string filename = img_path.substr(0, lastDotIndex);
-        filename.append("_").append("png");
+        filename.append("-").append(".png");
         imwrite(filename, image);
     } else {
         imwrite(img_path, image);
     }
+    
+   return image.clone();
 }
 
 //img_path의 이미지를 로드함

@@ -12,7 +12,7 @@
 #include <VideoProcessor.hpp>
 #include <ClientHandler.hpp>
 
-#define DURATION_SEC 20
+#define DURATION_SEC 10
 
 using namespace std;
 using namespace cv;
@@ -44,7 +44,7 @@ void status(ImageProcessor* ImgP){
         cin.ignore(numeric_limits<streamsize>::max(), '\n');
 
         if(input>=0 && input<rooms.size()){
-            vector<Mat> images;
+            vector<Mat> images, temp;
             auto& room = rooms[input];
             room.show_cctvs();
             cout<<"press q to shut CCTV"<<endl;
@@ -58,9 +58,9 @@ void status(ImageProcessor* ImgP){
                 for(auto& image : images){
                     if(!image.empty()){
                         unique_lock<mutex> lock(mtx);
-                        cout<<"is empty: "<<image.empty()<<endl;
-                        ImgP->process_image(image);
-                        cout<<"process image."<<endl;
+                        //cout<<"is empty: "<<image.empty()<<endl;
+                        temp.push_back(ImgP->process_image(image));
+                        //cout<<"process image."<<endl;
                     }
                     else{
                         is_empty = true;
@@ -70,14 +70,12 @@ void status(ImageProcessor* ImgP){
                     
                 }
                 if(!is_empty){
-                    cout<<"number of images: "<<images.size()<<endl;
-                    room.set_base(images);
+                    //cout<<"number of images: "<<images.size()<<endl;
+                    room.set_base(temp);
+                    BasePair bp = BasePair("1"/*room name, room.get_location(), 약속한대로 1*/, room.get_base());
+                    string json = make_json_string(bp);
+                    send_json(json, true);
                     cout<<room.get_location()<<" base set."<<endl;
-                    //base 값 전송하는 부분 필요
-                    //////
-
-                    //////
-                    //추가
                 }
                 return;
             case 2:
@@ -98,36 +96,44 @@ void status(ImageProcessor* ImgP){
 void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
     chrono::time_point<chrono::system_clock> start_time, end_time;
     chrono::duration<double> elapsed_seconds;
-    vector<Mat> images;
+    vector<Mat> images, temp;
     bool is_empty=false;
+    int i=0,j=0;
     while(!stop){
         start_time = chrono::system_clock::now();
+        temp.clear();
+        images.clear();
         for (auto& room : rooms){
             images = room.get_target_images();
-            cout<<"number of images: "<<images.size()<<endl;
+
+            //cout<<"number of images: "<<images.size()<<endl;
+            
             for(auto& image : images){
                 if (stop)
                     break;
                 if(!image.empty()){
                     unique_lock<mutex> lock(mtx);
-                    cout<<"is empty: "<<image.empty()<<endl;
-                    ImgP->process_image(image);
+                    //cout<<"is empty: "<<image.empty()<<endl;
+                    temp.push_back(ImgP->process_image(image));
+                    /*
+                    std::string img_path;
+                    img_path.append("examples/").append(to_string(i)).append(".jpg");
+                    if(!image.empty())
+                        imwrite(img_path, image);
+                    */
                 }
                 else{
                     is_empty = true;
                     //cout<<"image is empty."<<endl; 
                     break;
                 }
+                i++;
             }
             if(!is_empty){
-                room.cal_congestion(images);
-                //congestion 값 전송하는 부분 필요
-                //////
-                CongestionPair cp = CongestionPair("ssu"/*기관명*/, "1"/*room name, 약속한대로 1*/, room.get_congestion());
+                room.cal_congestion(temp);
+                CongestionPair cp = CongestionPair("ssu"/*기관명*/, "1"/*room name, room.get_location(), 약속한대로 1*/, room.get_congestion());
                 string json = make_json_string(cp);
-                send_json(json);
-                //////
-                //추가
+                send_json(json, false);
             }
             else
                 is_empty=false;
@@ -146,10 +152,6 @@ void work_thread(vector<class ROOM>& rooms, ImageProcessor* ImgP){
 }
 
 int main() {
-    //서버 인증하는 부분 필요
-    //////
-    //////
-    //추가
     ImageProcessor *ImgP;
     try {
         ImgP = new ImageProcessor();
@@ -158,23 +160,35 @@ int main() {
         cout << "Exception : " << e.what() << endl << "exit program."<< endl;
         return 0;
     }
+    /*
+    std::string fac;
 
-    //서버 데이터베이스로부터 ROOM, CCTV 정보를 읽어와서 rooms, cctvs 생성하는 코드 필요
-    //////
-    wstring roomstring = initialize("ssu");      //facility name = ssu로 고정
-    // rooms = make_rooms(roomstring);
-    //////
-    //추가
+    std::cout << "데이터베이스에 등록된 시설명을 입력하세요: ";
+    std::getline(std::cin, fac);
+    */
+
+    
+    wstring roomstring = initialize("ssu");//facility name = ssu로 고정
+    try {
+        make_rooms(roomstring, rooms);
+    } catch(...){
+
+    }
+    
+    /*
     try {
         rooms.emplace_back(0, "room1");
         for (auto& room : rooms){
-            room.add_cctv("rtsp://dbfrb963:dbfrb9786@192.168.1.4:554/stream_ch00_0", "cctv1");
-            room.add_cctv("rtsp://dbfrb963:dbfrb9786@192.168.1.10:554/stream_ch00_1", "cctv2");
+            room.add_cctv("rtsp://dbfrb963:dbfrb9786@192.168.1.5:554/stream_ch00_0", "cctv1");
+            room.add_cctv("rtsp://dbfrb963:dbfrb9786@192.168.1.6:554/stream_ch00_1", "cctv2");
             room.run_threads();
         }
     } catch (...) {
 
-    }
+    }*/
+
+    for (auto& room : rooms)
+            room.run_threads();
 
     thread work(&work_thread, ref(rooms), ref(ImgP));
     work.detach();
@@ -193,9 +207,8 @@ int main() {
                 break;
             case 2:
                 stop = true;
-                for (auto& room : rooms){
+                for (auto& room : rooms)
                     room.stop_threads();
-                }
                 return 0;
             default:
                 cout<<"input valid numbers(1~2)"<<endl; 
